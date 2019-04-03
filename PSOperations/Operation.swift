@@ -32,11 +32,11 @@ open class Operation: Foundation.Operation {
     }
     
     // use the KVO mechanism to indicate that changes to "state" affect other properties as well
-    class func keyPathsForValuesAffectingIsExecuting() -> Set<NSObject> {
+    @objc class func keyPathsForValuesAffectingIsExecuting() -> Set<NSObject> {
         return ["state" as NSObject]
     }
     
-    class func keyPathsForValuesAffectingIsFinished() -> Set<NSObject> {
+    @objc class func keyPathsForValuesAffectingIsFinished() -> Set<NSObject> {
         return ["state" as NSObject]
     }
     
