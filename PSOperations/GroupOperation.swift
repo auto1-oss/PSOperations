@@ -1,47 +1,33 @@
 /*
-Copyright (C) 2015 Apple Inc. All Rights Reserved.
-See LICENSE.txt for this sample’s licensing information
+ Copyright (C) 2015 Apple Inc. All Rights Reserved.
+ See LICENSE.txt for this sample’s licensing information
 
-Abstract:
-This file shows how operations can be composed together to form new operations.
-*/
+ Abstract:
+ This file shows how operations can be composed together to form new operations.
+ */
 
 import Foundation
 
 /**
-    A subclass of `Operation` that executes zero or more operations as part of its
-    own execution. This class of operation is very useful for abstracting several 
-    smaller operations into a larger operation. As an example, the `GetEarthquakesOperation`
-    is composed of both a `DownloadEarthquakesOperation` and a `ParseEarthquakesOperation`.
+ A subclass of `Operation` that executes zero or more operations as part of its
+ own execution. This class of operation is very useful for abstracting several
+ smaller operations into a larger operation. As an example, the `GetEarthquakesOperation`
+ is composed of both a `DownloadEarthquakesOperation` and a `ParseEarthquakesOperation`.
 
-    Additionally, `GroupOperation`s are useful if you establish a chain of dependencies, 
-    but part of the chain may "loop". For example, if you have an operation that
-    requires the user to be authenticated, you may consider putting the "login" 
-    operation inside a group operation. That way, the "login" operation may produce
-    subsequent operations (still within the outer `GroupOperation`) that will all
-    be executed before the rest of the operations in the initial chain of operations.
-*/
+ Additionally, `GroupOperation`s are useful if you establish a chain of dependencies,
+ but part of the chain may "loop". For example, if you have an operation that
+ requires the user to be authenticated, you may consider putting the "login"
+ operation inside a group operation. That way, the "login" operation may produce
+ subsequent operations (still within the outer `GroupOperation`) that will all
+ be executed before the rest of the operations in the initial chain of operations.
+ */
 open class GroupOperation: Operation {
     fileprivate let internalQueue = OperationQueue()
     fileprivate let startingOperation = Foundation.BlockOperation(block: {})
     fileprivate let finishingOperation = Foundation.BlockOperation(block: {})
 
-    private var _aggregatedErrors: [Error] = []
-    private let aggregateQueue = DispatchQueue(label: "Operations.GroupOperations.aggregateErrors")
-    fileprivate var aggregatedErrors: [Error] {
-        get {
-            var errors: [Error] = []
-            aggregateQueue.sync {
-                errors = _aggregatedErrors
-            }
-            return errors
-        }
-        set {
-            aggregateQueue.sync {
-                self._aggregatedErrors = newValue
-            }
-        }
-    }
+    fileprivate var aggregatedErrors: [NSError] = []
+    fileprivate let errorsLock = NSLock()
 
     public convenience init(operations: Foundation.Operation...) {
         self.init(operations: operations)
@@ -75,12 +61,18 @@ open class GroupOperation: Operation {
     }
 
     /**
-        Note that some part of execution has produced an error.
-        Errors aggregated through this method will be included in the final array 
-        of errors reported to observers and to the `finished(_:)` method.
-    */
-    public final func aggregateError(_ error: Error) {
-        aggregatedErrors.append(error)
+     Note that some part of execution has produced an error.
+     Errors aggregated through this method will be included in the final array
+     of errors reported to observers and to the `finished(_:)` method.
+     */
+    public final func aggregateError(_ error: NSError) {
+        aggregateErrors([error])
+    }
+
+    public final func aggregateErrors(_ errors: [NSError]) {
+        errorsLock.lock()
+        aggregatedErrors.append(contentsOf: errors)
+        errorsLock.unlock()
     }
 
     open func operationDidFinish(_ operation: Foundation.Operation, withErrors errors: [Error]) {
@@ -93,28 +85,28 @@ extension GroupOperation: OperationQueueDelegate {
         assert(!finishingOperation.isFinished && !finishingOperation.isExecuting, "cannot add new operations to a group after the group has completed")
 
         /*
-            Some operation in this group has produced a new operation to execute.
-            We want to allow that operation to execute before the group completes,
-            so we'll make the finishing operation dependent on this newly-produced operation.
-        */
+         Some operation in this group has produced a new operation to execute.
+         We want to allow that operation to execute before the group completes,
+         so we'll make the finishing operation dependent on this newly-produced operation.
+         */
         if operation !== finishingOperation {
             finishingOperation.addDependency(operation)
         }
 
         /*
-        All operations should be dependent on the "startingOperation".
-        This way, we can guarantee that the conditions for other operations
-        will not evaluate until just before the operation is about to run.
-        Otherwise, the conditions could be evaluated at any time, even
-        before the internal operation queue is unsuspended.
-        */
+         All operations should be dependent on the "startingOperation".
+         This way, we can guarantee that the conditions for other operations
+         will not evaluate until just before the operation is about to run.
+         Otherwise, the conditions could be evaluated at any time, even
+         before the internal operation queue is unsuspended.
+         */
         if operation !== startingOperation {
             operation.addDependency(startingOperation)
         }
     }
 
-    public final func operationQueue(_ operationQueue: OperationQueue, operationDidFinish operation: Foundation.Operation, withErrors errors: [Error]) {
-        aggregatedErrors.append(contentsOf: errors)
+    final public func operationQueue(_ operationQueue: OperationQueue, operationDidFinish operation: Foundation.Operation, withErrors errors: [NSError]) {
+        aggregateErrors(errors)
 
         if operation === finishingOperation {
             internalQueue.isSuspended = true
