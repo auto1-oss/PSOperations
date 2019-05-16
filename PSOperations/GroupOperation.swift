@@ -26,25 +26,8 @@ open class GroupOperation: Operation {
     fileprivate let startingOperation = Foundation.BlockOperation(block: {})
     fileprivate let finishingOperation = Foundation.BlockOperation(block: {})
     
-    private var _aggregatedErrors: [NSError] = []
-    private let aggregateQueue = DispatchQueue(label: "Operations.GroupOperations.aggregateErrors")
-    fileprivate var aggregatedErrors: [NSError] {
-        get {
-            var errors: [NSError] = []
-            aggregateQueue.sync {
-                errors = _aggregatedErrors
-            }
-            return errors
-        }
-        set {
-            aggregateQueue.sync {
-                self._aggregatedErrors = newValue
-            }
-        }
-    }
-    
-    
-    
+    fileprivate var aggregatedErrors: [NSError] = []
+    fileprivate let errorsLock = NSLock()
     
     public convenience init(operations: Foundation.Operation...) {
         self.init(operations: operations)
@@ -83,7 +66,13 @@ open class GroupOperation: Operation {
         of errors reported to observers and to the `finished(_:)` method.
     */
     public final func aggregateError(_ error: NSError) {
-        aggregatedErrors.append(error)
+        aggregateErrors([error])
+    }
+
+    public final func aggregateErrors(_ errors: [NSError]) {
+        errorsLock.lock()
+        aggregatedErrors.append(contentsOf: errors)
+        errorsLock.unlock()
     }
     
     open func operationDidFinish(_ operation: Foundation.Operation, withErrors errors: [NSError]) {
@@ -118,7 +107,7 @@ extension GroupOperation: OperationQueueDelegate {
     }
     
     final public func operationQueue(_ operationQueue: OperationQueue, operationDidFinish operation: Foundation.Operation, withErrors errors: [NSError]) {
-        aggregatedErrors.append(contentsOf: errors)
+        aggregateErrors(errors)
         
         if operation === finishingOperation {
             internalQueue.isSuspended = true
