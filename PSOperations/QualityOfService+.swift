@@ -1,11 +1,3 @@
-//
-//  QualityOfService+.swift
-//  PSOperations
-//
-//  Created by Dev Team on 8/29/17.
-//  Copyright © 2017 Pluralsight. All rights reserved.
-//
-
 import Foundation
 
 extension DispatchQoS.QoSClass {
@@ -20,6 +12,8 @@ extension DispatchQoS.QoSClass {
         case .background:
             self = .background
         case .default:
+            self = .default
+        @unknown default:
             self = .default
         }
     }

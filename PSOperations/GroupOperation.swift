@@ -32,34 +32,34 @@ open class GroupOperation: Operation {
     public convenience init(operations: Foundation.Operation...) {
         self.init(operations: operations)
     }
-    
+
     public init(operations: [Foundation.Operation]) {
         super.init()
-        
+
         internalQueue.isSuspended = true
         internalQueue.delegate = self
         internalQueue.addOperation(startingOperation)
-        
+
         for operation in operations {
             internalQueue.addOperation(operation)
         }
     }
-    
+
     override open func cancel() {
         internalQueue.cancelAllOperations()
         internalQueue.isSuspended = false
         super.cancel()
     }
-    
+
     override open func execute() {
         internalQueue.isSuspended = false
         internalQueue.addOperation(finishingOperation)
     }
-    
+
     open func addOperation(_ operation: Foundation.Operation) {
         internalQueue.addOperation(operation)
     }
-    
+
     /**
         Note that some part of execution has produced an error.
         Errors aggregated through this method will be included in the final array 
@@ -74,16 +74,16 @@ open class GroupOperation: Operation {
         aggregatedErrors.append(contentsOf: errors)
         errorsLock.unlock()
     }
-    
+
     open func operationDidFinish(_ operation: Foundation.Operation, withErrors errors: [NSError]) {
         // For use by subclassers.
     }
 }
 
 extension GroupOperation: OperationQueueDelegate {
-    final public func operationQueue(_ operationQueue: OperationQueue, willAddOperation operation: Foundation.Operation) {
+    public final func operationQueue(_ operationQueue: OperationQueue, willAddOperation operation: Foundation.Operation) {
         assert(!finishingOperation.isFinished && !finishingOperation.isExecuting, "cannot add new operations to a group after the group has completed")
-        
+
         /*
             Some operation in this group has produced a new operation to execute.
             We want to allow that operation to execute before the group completes,
@@ -92,7 +92,7 @@ extension GroupOperation: OperationQueueDelegate {
         if operation !== finishingOperation {
             finishingOperation.addDependency(operation)
         }
-        
+
         /*
         All operations should be dependent on the "startingOperation".
         This way, we can guarantee that the conditions for other operations
@@ -103,17 +103,15 @@ extension GroupOperation: OperationQueueDelegate {
         if operation !== startingOperation {
             operation.addDependency(startingOperation)
         }
-
     }
     
-    final public func operationQueue(_ operationQueue: OperationQueue, operationDidFinish operation: Foundation.Operation, withErrors errors: [NSError]) {
+    public final func operationQueue(_ operationQueue: OperationQueue, operationDidFinish operation: Foundation.Operation, withErrors errors: [NSError]) {
         aggregateErrors(errors)
         
         if operation === finishingOperation {
             internalQueue.isSuspended = true
             finish(aggregatedErrors)
-        }
-        else if operation !== startingOperation {
+        } else if operation !== startingOperation {
             operationDidFinish(operation, withErrors: errors)
         }
     }
