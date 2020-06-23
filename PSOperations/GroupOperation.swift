@@ -26,7 +26,7 @@ open class GroupOperation: Operation {
     fileprivate let startingOperation = Foundation.BlockOperation(block: {})
     fileprivate let finishingOperation = Foundation.BlockOperation(block: {})
 
-    fileprivate var aggregatedErrors: [NSError] = []
+    fileprivate var aggregatedErrors: [Error] = []
     fileprivate let errorsLock = NSLock()
 
     public convenience init(operations: Foundation.Operation...) {
@@ -69,7 +69,7 @@ open class GroupOperation: Operation {
         aggregateErrors([error])
     }
 
-    public final func aggregateErrors(_ errors: [NSError]) {
+    public final func aggregateErrors(_ errors: [Error]) {
         errorsLock.lock()
         aggregatedErrors.append(contentsOf: errors)
         errorsLock.unlock()
@@ -105,7 +105,7 @@ extension GroupOperation: OperationQueueDelegate {
         }
     }
 
-    final public func operationQueue(_ operationQueue: OperationQueue, operationDidFinish operation: Foundation.Operation, withErrors errors: [NSError]) {
+    final public func operationQueue(_ operationQueue: OperationQueue, operationDidFinish operation: Foundation.Operation, withErrors errors: [Error]) {
         aggregateErrors(errors)
 
         if operation === finishingOperation {
