@@ -18,11 +18,14 @@ open class Operation: Foundation.Operation {
 
     private static var psoperationContext = 0
 
-    /* The completionBlock property has unexpected behaviors such as executing twice and executing on unexpected threads. BlockObserver
-     * executes in an expected manner.
-     */
+    #if swift(>=5.9)
+    public typealias PSCompletionBlock = @Sendable () -> Void
+    #else
+    public typealias PSCompletionBlock = () -> Void
+    #endif
+
     @available(*, deprecated, message: "use BlockObserver completions instead")
-    override open var completionBlock: (() -> Void)? {
+    override open var completionBlock: PSCompletionBlock? {
         set {
             fatalError("The completionBlock property on NSOperation has unexpected behavior and is not supported in PSOperations.Operation 😈")
         }
