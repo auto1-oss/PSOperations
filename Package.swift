@@ -6,7 +6,7 @@ import PackageDescription
 let package = Package(
     name: "PSOperations",
     platforms: [
-        .iOS(.v8),
+        .iOS(.v10),
         .macOS(.v10_11),
         .tvOS(.v9),
     ],

@@ -25,23 +25,9 @@ open class GroupOperation: Operation {
     fileprivate let internalQueue = OperationQueue()
     fileprivate let startingOperation = Foundation.BlockOperation(block: {})
     fileprivate let finishingOperation = Foundation.BlockOperation(block: {})
-
-    private var _aggregatedErrors: [Error] = []
-    private let aggregateQueue = DispatchQueue(label: "Operations.GroupOperations.aggregateErrors")
-    fileprivate var aggregatedErrors: [Error] {
-        get {
-            var errors: [Error] = []
-            aggregateQueue.sync {
-                errors = _aggregatedErrors
-            }
-            return errors
-        }
-        set {
-            aggregateQueue.sync {
-                self._aggregatedErrors = newValue
-            }
-        }
-    }
+    
+    fileprivate var aggregatedErrors: [Error] = []
+    fileprivate let errorsLock = NSLock()
 
     public convenience init(operations: Foundation.Operation...) {
         self.init(operations: operations)
@@ -79,8 +65,15 @@ open class GroupOperation: Operation {
         Errors aggregated through this method will be included in the final array 
         of errors reported to observers and to the `finished(_:)` method.
     */
+
     public final func aggregateError(_ error: Error) {
-        aggregatedErrors.append(error)
+        aggregateErrors([error])
+    }
+
+    public final func aggregateErrors(_ errors: [Error]) {
+        errorsLock.lock()
+        aggregatedErrors.append(contentsOf: errors)
+        errorsLock.unlock()
     }
 
     open func operationDidFinish(_ operation: Foundation.Operation, withErrors errors: [Error]) {
@@ -112,10 +105,10 @@ extension GroupOperation: OperationQueueDelegate {
             operation.addDependency(startingOperation)
         }
     }
-
+    
     public final func operationQueue(_ operationQueue: OperationQueue, operationDidFinish operation: Foundation.Operation, withErrors errors: [Error]) {
-        aggregatedErrors.append(contentsOf: errors)
-
+        aggregateErrors(errors)
+        
         if operation === finishingOperation {
             internalQueue.isSuspended = true
             finish(aggregatedErrors)
